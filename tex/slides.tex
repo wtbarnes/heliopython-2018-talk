@@ -8,9 +8,36 @@
 \usepackage{fontspec}
 \defaultfontfeatures{Path=/Library/TeX/Root/texmf-dist/fonts/opentype/public/fontawesome/}
 \usepackage{fontawesome}
-\usepackage{pythontex}
 \usepackage{hyperref}
-\usepackage{svg}
+\usepackage{pythontex}
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+% PythonTeX Bug Fix % % % % % % % % % % % % % % % % % % % % % % % %
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % 
+% pytexbug fix for context in customcode.
+\makeatletter
+\renewenvironment{pythontexcustomcode}[2][begin]{%
+	\VerbatimEnvironment
+	\Depythontex{env:pythontexcustomcode:om:n}%
+	\ifstrequal{#1}{begin}{}{%
+		\ifstrequal{#1}{end}{}{\PackageError{\pytx@packagename}%
+			{Invalid optional argument for pythontexcustomcode}{}
+		}%
+	}%
+	\xdef\pytx@type{CC:#2:#1}%
+	\edef\pytx@cmd{code}%
+	% PATCH \def\pytx@context{}%
+	\pytx@SetContext
+	% END PATCH
+	\def\pytx@group{none}%
+	\pytx@BeginCodeEnv[none]}%
+{\end{VerbatimOut}%
+\setcounter{FancyVerbLine}{\value{pytx@FancyVerbLineTemp}}%
+\stepcounter{\pytx@counter}%
+}%
+\makeatother
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+\setpythontexcontext{figurewidth=\the\textwidth}
+% Other stuff
 \setbeamertemplate{caption}{\raggedright\insertcaption\par}
 % Title and author
 \title{fiasco: a Python interface to the\\CHIANTI atomic database}
@@ -22,13 +49,21 @@
 
 % Start Document
 \begin{document}
+
 % TeXFigure Manager
-\begin{pycode}[manager]
+\begin{pythontexcustomcode}{py}
 import texfigure
+texfigure.configure_latex_plots(pytex)
+pytex.formatter = texfigure.repr_latex_formatter
+import matplotlib.pyplot as plt
+\end{pythontexcustomcode}
+\begin{pycode}[manager]
 manager = texfigure.Manager(pytex, '../figures')
 \end{pycode}
+
 % Title
 \maketitle
+
 % Contact
 {%
 \setbeamertemplate{frame footer}{\href{https://wtbarnes.github.io/heliopython-2018-talk}{wtbarnes.github.io/heliopython-2018-talk}}
@@ -42,6 +77,7 @@ manager = texfigure.Manager(pytex, '../figures')
     \end{itemize}
 \end{frame}
 }
+
 % Content
 \begin{frame}
     \begin{figure}
@@ -58,7 +94,6 @@ import astropy.units as u
 import roman
 import pandas as pd
 import plasmapy.atomic
-import matplotlib.pyplot as plt
 import matplotlib.colors
 import seaborn
 # Get all ions
@@ -93,9 +128,11 @@ seaborn.heatmap(ion_table_pivot,
                 cbar_kws={'ticks':[1,10,100,1000]},
                 cbar=False)
 ax.tick_params(axis='both',which='both',bottom='off',left='off')
-Fig_chianti_ptable = manager.save_figure('Fig_chianti_ptable', fext='.pdf')
+fig_chianti_ptable = manager.save_figure('fig_chianti_ptable', fext='.pdf')
+fig_chianti_ptable.caption = ''
+fig_chianti_ptable.figure_width = r'1.05\textwidth'
     \end{pycode}
-    \py[manager]|Fig_chianti_ptable|
+    \py[manager]|fig_chianti_ptable|
 \end{frame}
 %%
 \begin{frame}{The CHIANTI Database}
@@ -283,6 +320,9 @@ d['E_obs'][:3]
         \centering
         \includegraphics[width=0.95\textwidth]{../figures/cloud_diagram.png}
     \end{figure}
+\end{frame}
+%%
+\begin{frame}{Roadmap}
 \end{frame}
 %%%
 {%
