@@ -45,7 +45,7 @@
 \date{13 November 2018}
 \author{Will Barnes}
 \institute{Department of Physics and Astronomy, Rice University\\Houston, TX USA}
-\titlegraphic{\hfill\includegraphics[height=1.5cm]{../figures/fiasco-logo.png}}
+\titlegraphic{\hfill\includegraphics[height=1.6cm]{../figures/fiasco-logo.png}}
 
 % Start Document
 \begin{document}
@@ -116,22 +116,23 @@ ion_table_pivot = ion_table_pivot.reindex_axis(sorted(ion_table_pivot.columns.to
 # Create heatmap
 fig = plt.figure(figsize=(15,8))
 ax=fig.gca()
-my_cmap = plt.get_cmap('Blues')
-my_cmap.set_bad(color='w')
 seaborn.heatmap(ion_table_pivot,
                 ax=ax,
                 square=False,
-                cmap=my_cmap,
+                cmap='Blues',
                 annot=True,
                 fmt='.0f',
                 norm=matplotlib.colors.LogNorm(vmin=1,vmax=1e3),
                 cbar_kws={'ticks':[1,10,100,1000]},
+                mask=ion_table_pivot.isnull(),
                 cbar=False)
 ax.tick_params(axis='both',which='both',bottom='off',left='off')
-fig_chianti_ptable = manager.save_figure('fig_chianti_ptable', fext='.pdf')
+fig_chianti_ptable = manager.save_figure('fig_chianti_ptable', fext='.pdf', transparent=True)
 fig_chianti_ptable.caption = ''
-fig_chianti_ptable.figure_width = r'1.05\textwidth'
+fig_chianti_ptable.figure_width = r'1.15\textwidth'
+fig_chianti_ptable.placement = 't'
     \end{pycode}
+    \vspace{-5ex}
     \py[manager]|fig_chianti_ptable|
 \end{frame}
 %%
@@ -286,7 +287,7 @@ print(p.parse().meta['footer'])
             \item[-] Python interface via \texttt{h5py} package 
         \end{itemize}
         \item Easily slice and select parts of data that you need
-        \item Easily store metadata alongside the data
+        \item Easily store \alert{metadata alongside the data}
     \end{itemize}
 \end{frame}
 \begin{frame}[fragile]{HDF5 as a Database}
@@ -309,9 +310,204 @@ d['E_obs'][:3]
 \section{The \texttt{Ion} Class}
 %%
 \begin{frame}[fragile]{The \texttt{Ion} Class}
+    \footnotesize
+    \begin{pyconsole}[ion_class]
+from fiasco import Ion
+import numpy as np; import astropy.units as u
+t = np.logspace(4, 9, 100)*u.K
+ion = Ion('Fe 16', temperature=t)
+# Or
+ion = Ion('Fe +15', t); ion = Ion('iron 16', t)
+ion.element_name,ion.atomic_symbol,ion.atomic_number
+ion.ion_name,ion.ionization_stage,ion.charge_state
+type(ion._elvlc) # Access raw data
+ion._elvlc['E_obs'][:3]
+    \end{pyconsole}
+\end{frame}
+%%
+\begin{frame}[fragile]{The \texttt{Ion} Class: Energy Levels and Transitions}
+    \small
+    \begin{pyconsole}[ion_class]
+ion[0]
+ion[1].level,ion[1].configuration
+[level.energy.to(u.eV) for level in ion]
+ion.transitions.wavelength[:3]
+ion.transitions.delta_energy[:3].to(u.eV)
+    \end{pyconsole}
+\end{frame}
+%%
+\begin{frame}[fragile]{The \texttt{Ion} Class: Derived Quantities}
+    \scriptsize
+    \begin{pyconsole}[ion_class]
+ion.ionization_rate()[:3]
+ion.recombination_rate()[:3]
+    \end{pyconsole}
+    \begin{pycode}[manager]
+import fiasco
+import numpy as np; import astropy.units as u
+t = np.logspace(4, 9, 100)*u.K
+ion = fiasco.Ion('Fe 16', temperature=t)
+fig = plt.figure(figsize=(12,5))
+ax = fig.gca()
+# Ionization Rate
+ax.plot(t,ion.ionization_rate(),label='Ionization',color='C0',ls='-')
+ax.plot(t,ion.direct_ionization_rate(),color='C0',ls='--',label='Direct Ionization')
+ax.plot(t,ion.excitation_autoionization_rate(),color='C0',ls=':',label='Excitation Autoionization')
+# Recombination rate
+ax.plot(t,ion.recombination_rate(),label='Recombination',color='C1',ls='-')
+ax.plot(t,ion.radiative_recombination_rate(),color='C1',ls='--',label='Radiative Recombination')
+ax.plot(t,ion.dielectronic_recombination_rate(),color='C1',ls=':',label='Dielectronic Recombination')
+ax.set_xscale('log')
+ax.set_yscale('log')
+ax.set_ylim(1e-12,1e-9)
+ax.set_xlim(1e4,1e9)
+ax.set_xlabel(f'$T$ [{ion.temperature.unit.to_string("latex")}]')
+ax.set_ylabel(f'Rate [{ion.ionization_rate().unit.decompose().cgs.to_string("latex")}]')
+ax.legend(loc=3)
+fig_ion_rates = manager.save_figure('fig_ion_rates', fext='.pdf', transparent=True)
+fig_ion_rates.caption = ''
+fig_ion_rates.figure_width = r'\textwidth'
+fig_ion_rates.placement = 't'
+    \end{pycode}
+    \vspace{-5ex}
+    \py[manager]|fig_ion_rates|
 \end{frame}
 %%%
 \section{Dealing with Multiple Ions}
+\begin{frame}[fragile]{The \texttt{Element} Class}
+    \begin{pyconsole}[ion_class]
+from fiasco import Element
+fe = Element('iron', temperature=t)
+fe.element_name,fe.atomic_number,fe.atomic_symbol
+fe.abundance
+type(fe[0])
+[ion.ion_name for ion in fe][:5]
+    \end{pyconsole}
+\end{frame}
+%%
+\begin{frame}[fragile]{The \texttt{Element} Class}
+    \begin{pyconsole}[ion_class]
+ioneq = fe.equilibrium_ionization()
+    \end{pyconsole}
+    \begin{pycode}[manager]
+from fiasco import Element
+import numpy as np; import astropy.units as u
+t = np.logspace(4, 9, 100)*u.K
+fe = Element('iron',t)
+ioneq = fe.equilibrium_ionization()
+fig = plt.figure(figsize=(12,5))
+ax = fig.gca()
+for ion in fe:
+    ax.plot(fe.temperature, ioneq[:,ion.charge_state], color=f'C{ion.charge_state%10}')
+ax.set_xscale('log')
+ax.set_xlabel(f'$T$ [{fe.temperature.unit.to_string("latex")}]')
+ax.set_ylabel(r'Population Fraction')
+ax.set_xlim(t[0].value,t[-1].value)
+fig_ioneq = manager.save_figure('fig_ioneq', fext='.pdf', transparent=True)
+fig_ioneq.caption = ''
+fig_ioneq.figure_width = r'1.1\textwidth'
+fig_ioneq.placement = 't'
+    \end{pycode}
+    \vspace{-5ex}
+    \py[manager]|fig_ioneq|
+\end{frame}
+%%c
+\begin{frame}[fragile]{Combining Ions}
+    \begin{itemize}
+        \item General collection of ions
+        \item Useful for computing spectra and radiative loss curves
+    \end{itemize}
+    \begin{pyconsole}[ion_class]
+fe_5 = Ion('Fe 5', t)
+fe_13 = Ion('Fe 13', t)
+fe_18 = Ion('Fe 18', t)
+from fiasco import IonCollection
+c = IonCollection(fe_5,fe_13,fe_18)
+# Or
+c = fe_5 + fe_13 + fe_18
+# Or
+c = Ion('H 1', t) + Element('iron', t)
+    \end{pyconsole}
+\end{frame}
+%%
+\begin{frame}[fragile]{Combining Ions}
+    \footnotesize
+    \begin{pyverbatim}
+r = IonCollection(fe_5).radiative_loss([1e9]*u.cm**(-3))
+    \end{pyverbatim}
+    \begin{pycode}[manager]
+from fiasco import Ion, IonCollection
+import numpy as np
+import astropy.units as u
+t = np.logspace(4, 9, 100)*u.K
+fe_5 = Ion('Fe 5', t)
+r = IonCollection(fe_5).radiative_loss([1e9]*u.cm**(-3))
+fig = plt.figure(figsize=(12,5))
+ax = fig.gca()
+ax.plot(t,r)
+ax.set_xscale('log')
+ax.set_yscale('log')
+ax.set_ylim(1e-30,1e-22)
+ax.set_xlabel(f'$T$ [{fe.temperature.unit.to_string("latex")}]')
+ax.set_ylabel(f'Radiative Loss [{r.unit.to_string("latex")}]')
+fig_radloss = manager.save_figure('fig_radloss', fext='.pdf', transparent=True)
+fig_radloss.caption = ''
+fig_radloss.figure_width = r'\textwidth'
+fig_radloss.placement = 't'
+    \end{pycode}
+    \vspace{-3ex}
+    \py[manager]|fig_radloss|
+\end{frame}
+%%
+\begin{frame}[fragile]{Combining Ions}
+    \footnotesize
+    \begin{pyverbatim}
+r = (fe_5 + fe_13).radiative_loss([1e9]*u.cm**(-3))
+    \end{pyverbatim}
+    \begin{pycode}[manager]
+fe_13 = Ion('Fe 13', t)
+r = (fe_5 + fe_13).radiative_loss([1e9]*u.cm**(-3))
+fig = plt.figure(figsize=(12,5))
+ax = fig.gca()
+ax.plot(t,r)
+ax.set_xscale('log')
+ax.set_yscale('log')
+ax.set_ylim(1e-30,1e-22)
+ax.set_xlabel(f'$T$ [{fe.temperature.unit.to_string("latex")}]')
+ax.set_ylabel(f'Radiative Loss [{r.unit.to_string("latex")}]')
+fig_radloss_2 = manager.save_figure('fig_radloss_2', fext='.pdf', transparent=True)
+fig_radloss_2.caption = ''
+fig_radloss_2.figure_width = r'\textwidth'
+fig_radloss_2.placement = 't'
+    \end{pycode}
+    \vspace{-3ex}
+    \py[manager]|fig_radloss_2|
+\end{frame}
+%%
+\begin{frame}[fragile]{Combining Ions}
+    \footnotesize
+    \begin{pyverbatim}
+r = (fe_5 + fe_13 + fe_18).radiative_loss([1e9]*u.cm**(-3))
+    \end{pyverbatim}
+    \begin{pycode}[manager]
+fe_18 = Ion('Fe 18', t)
+r = (fe_5 + fe_13 + fe_18).radiative_loss([1e9]*u.cm**(-3))
+fig = plt.figure(figsize=(12,5))
+ax = fig.gca()
+ax.plot(t,r)
+ax.set_xscale('log')
+ax.set_yscale('log')
+ax.set_ylim(1e-30,1e-22)
+ax.set_xlabel(f'$T$ [{fe.temperature.unit.to_string("latex")}]')
+ax.set_ylabel(f'Radiative Loss [{r.unit.to_string("latex")}]')
+fig_radloss_3 = manager.save_figure('fig_radloss_3', fext='.pdf', transparent=True)
+fig_radloss_3.caption = ''
+fig_radloss_3.figure_width = r'\textwidth'
+fig_radloss_3.placement = 't'
+    \end{pycode}
+    \vspace{-3ex}
+    \py[manager]|fig_radloss_3|
+\end{frame}
 %%%
 \section{Looking Forward}
 %%
@@ -322,7 +518,30 @@ d['E_obs'][:3]
     \end{figure}
 \end{frame}
 %%
-\begin{frame}{Roadmap}
+\begin{frame}[allowframebreaks]{Roadmap}
+    \begin{itemize}
+        \item Features
+        \begin{itemize}
+            \item[-] Continuum emission (bremsstrahlung, free-bound)
+            \item[-] Parse older versions of the database
+            \item[-] Spectra
+            \item[-] Radiative losses 
+            \item[-] Remote data
+        \end{itemize}
+        \item Infrastructure
+        \begin{itemize}
+            \item[-] \textbf{Testing:} Rigourous comparison against CHIANTI IDL
+            \item[-] \textbf{Testing:} Improved coverage overall
+            \item[-] \textbf{Docs:} More thorough tutorial
+        \end{itemize}
+        \item Meta
+        \begin{itemize}
+            \item[-] Bring under project umberella---SunPy? CHIANTI? Heliopython?
+            \item[-] Encourage contributions from community 
+            \item[-] Integrate with CHIANTI team 
+            \item[-] Interoperability between other atomic datasets (e.g. AtomDB, Cloudy) 
+        \end{itemize}
+    \end{itemize}
 \end{frame}
 %%%
 {%
